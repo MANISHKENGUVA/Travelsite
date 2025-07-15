@@ -1,11 +1,12 @@
 <template>
-  <div class="col-12 col-md-6  mb-4"> <div class="card border-0 rounded-4 shadow-lg h-100 offer-transport-card">
+  <div class=" col-12 col-md-6 ">
+     <div class=" border-0 rounded-4 shadow-lg offer-transport-card">
       <div
-        class="position-absolute top-0 start-0 w-100 h-100 rounded-4 overlay-gradient-success"
+        class="position-absolute top-0 start-0 w-100  rounded-4 overlay-gradient-success"
         aria-hidden="true"
       ></div>
 
-      <div class="card-body p-4 position-relative z-1 d-flex flex-column">
+      <div class=" p-4 position-relative z-1 d-flex flex-column">
         <div class="d-flex align-items-center mb-3">
           <div class="icon-wrapper d-flex align-items-center justify-content-center rounded-circle bg-success text-white me-3 flex-shrink-0">
             <i class="bi bi-truck fs-3"></i> </div>

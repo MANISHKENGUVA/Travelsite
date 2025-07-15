@@ -1,4 +1,3 @@
-
 <template>
   <div class="delivery-requests-container">
     <div class="container py-4">
@@ -27,7 +26,6 @@
           >
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start mb-3">
-                
                 <div>
                   <h5 class="card-title fw-bold">{{ request.item_type }}</h5>
                   <p class="card-subtitle text-muted">{{ request.item_description }}</p>
@@ -53,12 +51,11 @@
                    <p class="mb-1 fw-medium"><i class="bi bi-person-check me-2"></i><strong>Receiver:</strong></p>
                    <p class="text-muted ps-4">{{ request.receiver_name }} - {{ request.receiver_phone }}</p>
                 </div>
-                 <div class="col-md-6">
-                    <p class="mb-1 fw-medium"><i class="bi bi-clock me-2"></i><strong>Timeframe:</strong></p>
-                    <p class="text-muted ps-4">{{ getTimeframeLabel(request.delivery_timeframe) }}</p>
-                 </div>
+                  <div class="col-md-6">
+                     <p class="mb-1 fw-medium"><i class="bi bi-clock me-2"></i><strong>Timeframe:</strong></p>
+                     <p class="text-muted ps-4">{{ getTimeframeLabel(request.delivery_timeframe) }}</p>
+                  </div>
               </div>
-
 
               <div v-if="request.special_instructions" class="mt-3">
                 <p class="fw-medium"><i class="bi bi-chat-left-dots me-2"></i><strong>Special Instructions:</strong></p>
@@ -108,8 +105,8 @@
                 </div>
 
                 <div class="mb-3">
-                    <label :for="'file-upload-' + index" class="btn btn-outline-primary w-100">
-                        <i class="bi bi-upload me-2"></i> Choose Files to Upload
+                    <label :for="'file-upload-' + index" class="btn btn-outline-primary w-100" :class="{ 'disabled': tempblobs.length >= maxFilesAllowed }">
+                        <i class="bi bi-upload me-2"></i> Choose Files to Upload ({{ tempblobs.length }}/{{ maxFilesAllowed }})
                     </label>
                     <input
                         :id="'file-upload-' + index"
@@ -117,11 +114,35 @@
                         multiple
                         ref="fileInput"
                         @change="handleFiles"
-                        accept="image/*,video/*,application/*"
-                        class="d-none"
+                        accept="image/*" class="d-none"
+                        :disabled="tempblobs.length >= maxFilesAllowed"
                     />
                 </div>
                 
+                <div v-if="tempblobUrls.length" class="mb-3">
+                  <h6 class="fw-bold">Selected Files for Upload:</h6>
+                  <div class="row gx-3 gy-3">
+                    <div
+                      v-for="(url, i) in tempblobUrls"
+                      :key="'selected-preview-' + i"
+                      class="col-md-4 col-sm-6"
+                    >
+                      <div class="file-preview-card">
+                        <img v-if="isImage(tempblobs[i])" :src="url" class="img-fluid rounded" />
+                        <a v-else :href="url" target="_blank" class="d-block p-3 text-center">
+                          <i class="bi bi-file-earmark-arrow-down fs-1"></i>
+                          <p>File {{ i + 1 }}</p>
+                        </a>
+                        <div class="file-info p-2">
+                          <small>Size: {{ (tempblobs[i].size / 1024).toFixed(2) }} KB</small><br/>
+                          <small>Type: {{ tempblobs[i].type }}</small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+
                 <div class="d-flex gap-2 mb-3">
                    <button class="btn btn-primary w-100" @click="uploadFiles(request.product_id, request.confirmation_by_sender)">
                      <i class="bi bi-cloud-arrow-up-fill me-2"></i> Upload
@@ -153,6 +174,15 @@
                       </div>
                     </div>
                   </div>
+                  <div class="text-center mt-4">
+                    <button
+                      @click="confirmDeliverylast(request.product_id, request.confirmation_by_sender,request.otp)"
+                      class="btn btn-success btn-lg px-4 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2"
+                    >
+                      <i class="bi bi-check-circle-fill"></i>
+                      Confirm Delivery
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -164,7 +194,8 @@
 </template>
 
 <script>
-import { gsap } from 'gsap'; // Make sure GSAP is correctly imported
+import { gsap } from 'gsap';
+import { encryptUserData } from "../cry";
 
 export default {
   data() {
@@ -173,16 +204,38 @@ export default {
       acceptedRequest: null,
       isLoading: true,
       isoneaccepted: false,
-      tempblobs: [],
-      tempblobUrls: [],
-      usertempblobs: [],
-      usertempblobUrls: [],
+      tempblobs: [], // This will now only store up to 3 blobs for new selection
+      tempblobUrls: [], // This will now only store up to 3 blob URLs for new selection
+      usertempblobs: [], // For already uploaded files fetched from server
+      usertempblobUrls: [], // For URLs of already uploaded files
+      maxFilesAllowed: 3, // Defines the maximum number of images allowed
     };
   },
   created() {
     this.getRequests();
   },
   methods: {
+    async confirmDeliverylast(productId, confirmedBy, otp) {
+      const datatopage = {
+        productId: productId,
+        confirmationBySender: confirmedBy,
+        transportTripId: this.$route?.query?.transportTripId,
+        email: this.$store.getters.getUser.email,
+        otp: otp,
+      };
+      const id = encryptUserData(datatopage);
+
+      this.$router.push({
+        name: 'CnfDelivery',
+        params: { id: id },
+      });
+      // Error handling for navigation is typically done via router hooks or global error handling.
+      // The original 'error' variable was not defined in this scope.
+    },
+    showToast(message, variant = 'info') {
+      // For a real application, replace this with a proper toast notification system (e.g., Bootstrap 5's toast, Vue-Toastification)
+      alert(message);
+    },
     getRequests() {
       const baseUrl = import.meta.env.VITE_API_BASE_URL;
       const email = this.$store.getters.getUser.email;
@@ -190,27 +243,71 @@ export default {
       const query = `email=${encodeURIComponent(email)}&transportTripId=${encodeURIComponent(transportTripId)}`;
 
       fetch(`${baseUrl}api/view-requests?${query}`)
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
         .then(data => {
           this.requests = data.deliveryRequests || [];
+          // Check if any request has an accepted_travel_id, indicating one is already taken
           this.isoneaccepted = this.requests.some(req => req.accepted_travel_id != null);
           this.isLoading = false;
         })
         .catch(err => {
           console.error("Error fetching requests:", err);
           this.isLoading = false;
+          this.showToast('Failed to load delivery requests.', 'danger');
         });
     },
 
     handleFiles(event) {
-      const files = Array.from(event.target.files);
-      const blobs = files.map(file => new Blob([file], { type: file.type }));
-      const urls = blobs.map(blob => URL.createObjectURL(blob));
-      this.tempblobs.push(...blobs);
-      this.tempblobUrls.push(...urls);
+      const selectedFiles = Array.from(event.target.files);
+
+      // Reset tempblobs and tempblobUrls to only hold the *new* selection
+      this.tempblobs = [];
+      this.tempblobUrls = [];
+
+      // Filter for image files only and respect the maxFilesAllowed limit
+      const imageFiles = selectedFiles.filter(file => file.type.startsWith('image/')).slice(0, this.maxFilesAllowed);
+
+      if (selectedFiles.length > imageFiles.length) {
+          // Inform user if non-image files were selected
+          this.showToast('Only image files are allowed. Other selected files were ignored.');
+      }
+      
+      if (imageFiles.length === 0 && selectedFiles.length > 0) {
+        this.showToast('No valid image files were selected.');
+        event.target.value = null; // Clear input if no images are valid
+        return;
+      }
+
+
+      if (imageFiles.length > this.maxFilesAllowed) {
+        this.showToast(`You can select a maximum of ${this.maxFilesAllowed} images. Only the first ${this.maxFilesAllowed} will be processed.`);
+      }
+
+      imageFiles.forEach(file => {
+        const blob = new Blob([file], { type: file.type });
+        const url = URL.createObjectURL(blob);
+        this.tempblobs.push(blob);
+        this.tempblobUrls.push(url);
+      });
+
+      // Clear the input element's value to ensure 'change' event fires if the same files are selected again
+      event.target.value = '';
     },
 
     async uploadFiles(productId, confirmationBySender) {
+      if (this.tempblobs.length === 0) {
+        this.showToast('Please select at least one file to upload.', 'warning');
+        return;
+      }
+
+      // Indicate loading for user if you have a UI for it
+      // this.isUploading = true;
+
       const email = this.$store.getters.getUser.email;
       const filesAsBase64 = await Promise.all(
         this.tempblobs.map(blob => this.blobToBase64(blob))
@@ -233,19 +330,31 @@ export default {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
         .then(() => {
-          this.tempblobs = [];
-          this.tempblobUrls = [];
+          this.showToast('Files uploaded successfully!', 'success');
+          this.tempblobs = []; // Clear selected files after upload
+          this.tempblobUrls = []; // Clear selected file URLs
+          // The ref 'fileInput' might be an array if used with v-for, so access the first element
           if (this.$refs.fileInput) {
             const fileInputEl = Array.isArray(this.$refs.fileInput) ? this.$refs.fileInput[0] : this.$refs.fileInput;
             if (fileInputEl) {
-              fileInputEl.value = null;
+              fileInputEl.value = null; // Clear the file input visually
             }
           }
+          this.fetchAllBlobs(productId, confirmationBySender); // Refresh the list of uploaded files
         })
         .catch(err => {
           console.error("Upload failed:", err);
+          this.showToast('Failed to upload files. Please try again.', 'danger');
+        })
+        .finally(() => {
+          // this.isUploading = false;
         });
     },
 
@@ -263,35 +372,43 @@ export default {
           }),
         });
 
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const result = await response.json();
-        if (!Array.isArray(result.data)) throw new Error("Invalid response");
+        if (!Array.isArray(result.data)) {
+          console.warn("Server response for fetching blobs is not an array:", result);
+          this.usertempblobs = [];
+          this.usertempblobUrls = [];
+          return; // Exit if data is not as expected
+        }
 
         let allBlobs = [];
-
-        for (const record of result.data) {
+        result.data.forEach(record => {
           if (Array.isArray(record.files)) {
-            for (const file of record.files) {
+            record.files.forEach(file => {
               if (file?.base64 && file?.type) {
                 const blob = this.base64ToBlob(file.base64, file.type);
                 allBlobs.push(blob);
               }
-            }
+            });
           }
-        }
+        });
 
+        // Revoke old URLs before creating new ones to prevent memory leaks
         this.usertempblobUrls.forEach(url => URL.revokeObjectURL(url));
 
         this.usertempblobs = allBlobs;
-        this.usertempblobUrls = allBlobs.map(blob =>
-          URL.createObjectURL(blob)
-        );
+        this.usertempblobUrls = allBlobs.map(blob => URL.createObjectURL(blob));
+        // this.showToast('Uploaded files fetched successfully!', 'info'); // Optional success toast
       } catch (err) {
         console.error("Fetch error:", err);
+        this.showToast('Failed to fetch uploaded files.', 'danger');
       }
     },
 
     handleAcceptRequest(productId) {
-      this.acceptedRequest = productId;
+      this.acceptedRequest = productId; // Temporarily mark as accepted in UI
       const data = {
         requestId: productId,
         email: this.$store.getters.getUser.email,
@@ -306,13 +423,21 @@ export default {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
         .then(serverRes => {
-          console.log("Server response:", serverRes);
-          this.getRequests();
+          console.log("Server response on accept:", serverRes);
+          this.showToast('Request accepted successfully! Awaiting sender confirmation.', 'success');
+          this.getRequests(); // Re-fetch requests to update the status in the UI
         })
         .catch(err => {
           console.error("Accept error:", err);
+          this.showToast('Failed to accept request. Please try again.', 'danger');
+          this.acceptedRequest = null; // Revert UI if acceptance fails
         });
     },
     
@@ -339,6 +464,7 @@ export default {
       return labels[timeframe] || timeframe;
     },
 
+    // Helper to convert Blob to Base64 string
     blobToBase64(blob) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -348,6 +474,7 @@ export default {
       });
     },
 
+    // Helper to convert Base64 string back to Blob
     base64ToBlob(base64, mimeType) {
       const byteCharacters = atob(base64.split(",")[1]);
       const byteNumbers = new Array(byteCharacters.length);
@@ -366,10 +493,12 @@ export default {
   },
 
   beforeUnmount() {
+    // Clean up created object URLs to prevent memory leaks
     this.tempblobUrls.forEach(url => URL.revokeObjectURL(url));
     this.usertempblobUrls.forEach(url => URL.revokeObjectURL(url));
   },
   watch: {
+    // Watch 'requests' to trigger GSAP animation when confirmation status changes
     requests: {
       handler(newRequests, oldRequests) {
         newRequests.forEach((newItem, index) => {
@@ -385,8 +514,8 @@ export default {
           }
         });
       },
-      deep: true,
-      immediate: true
+      deep: true, // Watch for nested changes in array objects
+      immediate: true // Run handler immediately on component creation
     }
   },
 };
@@ -491,5 +620,11 @@ export default {
 
 .btn i {
     vertical-align: middle;
+}
+
+/* Style for disabled file upload button */
+.btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

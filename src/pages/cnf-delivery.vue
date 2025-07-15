@@ -1,5 +1,17 @@
 <template>
-  <div class="container py-4 max-w-2xl">
+   <div>
+    <div v-if="loading" class="container py-4 max-w-2xl text-center">
+      <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 300px;">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3 text-muted">Checking delivery status...</p>
+      </div>
+    </div>
+  </div>
+
+  <div v-if="!datatheree && !loading " class="container py-4 max-w-2xl">
+  
     <div class="d-flex align-items-center gap-3 mb-4">
       <button class="btn btn-link p-0 text-decoration-none" @click="$router.push('/carrier-dashboard')" aria-label="Go back to dashboard">
         <i class="bi bi-arrow-left fs-4 text-muted"></i>
@@ -16,7 +28,7 @@
           <h5 class="card-title fw-bold text-primary">{{ delivery.itemDescription }}</h5>
           <span class="badge bg-success-subtle text-success fs-6 px-3 py-2 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i> Ready for Confirmation</span>
         </div>
-        
+
         <div class="row g-2 mb-3">
           <div class="col-6">
             <p class="mb-0 text-muted small"><i class="bi bi-tag-fill me-2 text-info"></i><span class="fw-medium">Type:</span> {{ delivery.itemType }}</p>
@@ -83,12 +95,12 @@
 
         <div v-if="step === 'otp'" class="animate__animated animate__fadeIn">
           <h5 class="mb-3 fw-semibold">1. OTP Verification</h5>
-          <p class="text-muted">Please ask the receiver for the 6-digit One-Time Password (OTP) sent to their registered contact number and enter it below.</p>
+          <p class="text-muted">Please ask the receiver for the 5-digit One-Time Password (OTP) sent to their registered contact number and enter it below.</p>
           <div class="input-group mb-3">
             <span class="input-group-text"><i class="bi bi-key"></i></span>
-            <input v-model="otp" type="text" inputmode="numeric" class="form-control form-control-lg" maxlength="6" placeholder="Enter 6-digit OTP" />
+            <input v-model="otp" type="text" inputmode="numeric" class="form-control form-control-lg" maxlength="5" placeholder="Enter 5-digit OTP" />
           </div>
-          <button class="btn btn-primary btn-lg w-100 rounded-pill" :disabled="otp.length !== 6" @click="verifyOTP">
+          <button class="btn btn-primary btn-lg w-100 rounded-pill" :disabled="otp.length !== 5" @click="verifyOTP">
             <i class="bi bi-check-circle me-2"></i> Verify OTP
           </button>
         </div>
@@ -96,12 +108,12 @@
         <div v-else-if="step === 'photo'" class="animate__animated animate__fadeIn">
           <h5 class="mb-3 fw-semibold">2. Photo Proof of Delivery</h5>
           <p class="text-muted">Capture or upload a clear photo of the delivered item at the drop-off location or with the receiver, if appropriate.</p>
-          
+
           <div class="photo-upload-area border rounded-3 p-4 text-center d-flex flex-column justify-content-center align-items-center bg-light-subtle"
                :class="{'has-photo': photoPreviewUrl}"
                style="min-height: 200px; cursor: pointer;"
                @click="triggerFileInput">
-            
+
             <input type="file" ref="photoInput" @change="handlePhotoUpload" accept="image/*" class="d-none" />
 
             <div v-if="photoPreviewUrl" class="photo-preview-wrapper animate__animated animate__zoomIn">
@@ -137,6 +149,7 @@
             <div v-if="signatureCompleted" class="text-success animate__animated animate__zoomIn">
               <i class="bi bi-check-circle-fill fs-1 mb-2"></i>
               <p class="mb-0 fw-semibold">Signature captured successfully!</p>
+              <img v-if="signatureImageBase64" :src="signatureImageBase64" alt="Captured Signature" class="img-fluid mt-2" style="max-height: 100px; border: 1px dashed #ccc; background-color: white;">
             </div>
             <div v-else class="text-muted">
               <i class="bi bi-pencil-square fs-1 mb-2"></i>
@@ -145,9 +158,12 @@
           </div>
           <div class="d-grid gap-2 mt-3">
             <button class="btn btn-outline-primary btn-lg rounded-pill" @click="captureSignature">
-              <i class="bi bi-pencil me-2"></i> Capture Signature
+              <i class="bi bi-pencil me-2"></i> {{ signatureCompleted ? 'Recapture Signature' : 'Capture Signature' }}
             </button>
-            <button class="btn btn-primary btn-lg rounded-pill" v-if="signatureCompleted" @click="step = 'complete'">
+              <button class="btn btn-danger btn-lg rounded-pill" v-if="signatureCompleted" @click="clearSignature">
+              <i class="bi bi-trash me-2"></i> Clear Signature
+            </button>
+            <button class="btn btn-primary btn-lg rounded-pill" :disabled="!signatureCompleted && delivery.requiresSignature" @click="step = 'complete'">
               <i class="bi bi-arrow-right-circle me-2"></i> Continue to Final Confirmation
             </button>
           </div>
@@ -169,92 +185,295 @@
         </div>
       </div>
     </div>
+
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <div v-for="toast in toasts" :key="toast.id"
+           :class="['toast', 'show', 'align-items-center', `text-bg-${toast.type === 'error' ? 'danger' : toast.type}`, 'border-0']"
+           role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body">
+            {{ toast.message }}
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" aria-label="Close"
+                   @click="removeToast(toast.id)"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" :class="{ 'show d-block': showSignaturePadModal }" tabindex="-1" aria-labelledby="signaturePadModalLabel" aria-hidden="true" v-if="showSignaturePadModal">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="signaturePadModalLabel">Receiver's Signature</h5>
+            <button type="button" class="btn-close" @click="cancelSignature" aria-label="Close"></button>
+          </div>
+          <div class="modal-body text-center">
+            <p class="text-muted small">Please sign within the box below.</p>
+            <canvas ref="signatureCanvas" class="border border-secondary rounded" width="400" height="200" style="width: 100%; height: 200px; touch-action: none;"></canvas>
+            <p class="text-danger small mt-2" v-if="signatureError">{{ signatureError }}</p>
+          </div>
+          <div class="modal-footer d-flex justify-content-between">
+            <button type="button" class="btn btn-outline-secondary rounded-pill" @click="clearSignaturePad">Clear</button>
+            <div>
+              <button type="button" class="btn btn-secondary rounded-pill me-2" @click="cancelSignature">Cancel</button>
+              <button type="button" class="btn btn-primary rounded-pill" @click="saveSignature">Save Signature</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-backdrop fade" :class="{ 'show': showSignaturePadModal }" v-if="showSignaturePadModal"></div>
+  </div>
+  <div v-else>
+    <div v-if="datatheree" class="container py-4 max-w-2xl" >
+      <h3 class="text-center text-success">Delivery Already Confirmed</h3>
+      <p class="text-center text-muted">This delivery has already been confirmed. Thank you!</p>
+      <div class="text-center">
+        <button class="btn btn-primary" @click="$router.push('/carrier-dashboard')">Go to Dashboard</button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
+
+import { decryptUserData } from '../cry.js'; // Adjust the import path as necessary
+
 export default {
   data() {
     return {
-      step: 'otp', // Current step in the verification process
-      otp: '', // Stores the entered OTP
-      photoTaken: false, // Flag for photo completion
-      photoFile: null, // Stores the actual photo File object
-      photoPreviewUrl: null, // Stores the Data URL for image preview
-      photoError: '', // Error message for photo upload
-      signatureCompleted: false, // Flag for signature completion
-      deliveryNotes: '', // Optional notes for delivery
-      isSubmitting: false, // Loading state for final submission
+      datatheree: null,
+      loading: true,
+      decryptedData: null,
+      step: 'otp',
+      otp: '',
+      photoTaken: false,
+      photoFile: null, // Stores the File object (not sent to backend directly)
+      photoPreviewUrl: null, // Stores the data URL for preview (and for `finallastphoto`)
+      photoError: '',
+      signatureCompleted: false,
+      deliveryNotes: '',
+      isSubmitting: false,
+      toasts: [],
+      toastIdCounter: 0,
+
+      // These will now directly hold the Base64 data URL strings
+      finallastphoto: null,
+      finalsignaturebase64: null,
+
+      // Signature Pad properties
+      showSignaturePadModal: false,
+      signatureCanvas: null,
+      signaturePadInstance: null,
+      signatureImageBase64: null, // To store the actual Base64 image data URL
+      signatureError: '',
+
+      // Dummy delivery data (will be populated/verified by decryptedData)
       delivery: {
-        id: 'del-1',
+        id: 'del-1', // This should likely come from decryptedData's product ID or similar
         itemDescription: 'MacBook Pro laptop',
         itemType: 'Electronics',
         senderName: 'Emily Chen',
-        senderAvatar: '',
         carrierName: 'Sarah Johnson',
-        carrierAvatar: '',
         carrierRating: 4.9,
         receiverName: 'John Smith',
         pickupAddress: '123 Tech Street, Boston, MA',
         dropoffAddress: '456 Innovation Ave, New York, NY',
-        amount: 40, // Assuming this is USD for the placeholder
-        requiresSignature: true, // Example: delivery requires signature
-        requiresOTP: true, // Example: delivery requires OTP
-        specialInstructions: 'Handle with care. Receiver available after 3 PM.'
+        amount: 40,
+        requiresSignature: true, // Set to false if signature is not always required
+        requiresOTP: true,
+        specialInstructions: 'Handle with care. Receiver available after 3 PM.',
+        otp: '' // This will be set by decryptedData
       }
     };
   },
+  watch: {
+    showSignaturePadModal(newValue) {
+      if (newValue) {
+        this.$nextTick(() => {
+          this.initializeSignaturePad();
+        });
+      } else {
+        if (this.signaturePadInstance) {
+          this.signaturePadInstance.off();
+          this.signaturePadInstance = null;
+        }
+      }
+    },
+    step(newStep, oldStep) {
+      // When moving from photo to signature/complete, ensure photo Base64 is stored
+      if (oldStep === 'photo' && (newStep === 'signature' || newStep === 'complete') && this.photoPreviewUrl) {
+          this.finallastphoto = this.photoPreviewUrl;
+          console.log('Photo Base64 for submission stored.');
+      }
+      // When moving from signature to complete, ensure signature Base64 is stored
+      if (oldStep === 'signature' && newStep === 'complete') {
+          if (this.delivery.requiresSignature && this.signatureImageBase64) {
+              this.finalsignaturebase64 = this.signatureImageBase64;
+              console.log('Signature Base64 for submission stored.');
+          } else if (!this.delivery.requiresSignature) {
+              this.finalsignaturebase64 = null; // Ensure null if signature not required
+          }
+      }
+    },
+  },
+  created() {
+    try {
+      const encryptedId = this.$route.params.id;
+      if (!encryptedId) {
+        throw new Error('Encrypted data ID is missing from route parameters.');
+      }
+
+      this.decryptedData = decryptUserData(encryptedId); // Use your actual decryption logic
+
+      if (!this.decryptedData || !this.decryptedData.productId || !this.decryptedData.confirmationBySender ||
+         !this.decryptedData.email || !this.decryptedData.otp || !this.decryptedData.transportTripId) {
+        throw new Error('Decrypted data is incomplete or invalid.');
+      }
+
+      console.log('Decrypted data:', this.decryptedData);
+      this.checkConfirmationStatus(this.decryptedData.productId, this.decryptedData.confirmationBySender);
+      this.delivery.otp = this.decryptedData.otp; // Set the OTP for verification
+      // You might want to populate other `delivery` details from `decryptedData` here if available
+      // e.g., this.delivery.id = this.decryptedData.productId;
+
+    } catch (error) {
+      console.error('Failed to load delivery details (decryption error):', error);
+      this.fireToast({
+        type: 'error',
+        message: 'Failed to load delivery details. Please try again. (Decryption Error)',
+        duration: 5000
+      });
+      // Optionally redirect to an error page or dashboard
+      // this.$router.replace('/error');
+    }
+  },
   methods: {
-    /**
-     * Checks if a given step has been completed.
-     * Used for the step progress indicator.
-     * @param {string} stepName - The name of the step (e.g., 'otp', 'photo').
-     * @returns {boolean} True if the step is completed, false otherwise.
-     */
+    async checkConfirmationStatus(product_id, confirmation_by_sender) {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL;
+ const endpoint = `${baseUrl}api/check-last-confirmed`; // Your backend endpoint
+
+
+
+ try {
+
+const response = await fetch(endpoint, {
+
+method: 'POST', // We're sending data, so it's a POST request
+
+headers: {
+
+'Content-Type': 'application/json', // Tell the server we're sending JSON
+
+},
+
+body: JSON.stringify({ // Convert your JavaScript object to a JSON string
+
+product_id: product_id,
+
+ confirmation_by_sender: confirmation_by_sender,
+
+}),
+ });
+
+
+
+const result = await response.json(); // Parse the JSON response from the server
+
+
+
+if (response.ok) { // Check if the HTTP status code is 2xx (success)
+if(result.message=="Matching record found and all required confirmation columns are filled."){
+  this.loading = false;
+  this.datatheree = true; // Store the data for use in the component
+
+}
+console.log('Success:', result.message);
+
+// You can do more here, e.g., update UI, show a success message
+ return { success: true, data: result.data, message: result.message };
+
+} else {
+
+ // Handle HTTP errors (4xx or 5xx status codes)
+
+ console.error('Error:', result.message);
+
+
+
+return { success: false, message: result.message, status: response.status };
+
+ }
+
+ } catch (error) {
+
+
+console.error('Network or unexpected error:', error);
+
+return { success: false, message: 'Could not connect to the server. Please try again.', error: error };
+
+ }
+
+},
     isStepCompleted(stepName) {
       if (stepName === 'otp') {
-        return this.otp.length === 6;
+        return this.otp.length === 5 && this.decryptedData && this.decryptedData.otp == this.otp;
       }
       if (stepName === 'photo') {
-        return this.photoTaken && this.photoFile !== null;
+        return this.photoTaken && this.photoPreviewUrl !== null;
       }
       if (stepName === 'signature') {
-        return this.signatureCompleted || !this.delivery.requiresSignature; // Signature not required means it's "completed"
+        return this.signatureCompleted || !this.delivery.requiresSignature;
       }
       if (stepName === 'complete') {
-        // All preceding steps must be completed based on their requirements
-        const otpComplete = this.otp.length === 6;
-        const photoComplete = this.photoTaken && this.photoFile !== null;
+        const otpComplete = this.otp.length === 5 && this.decryptedData && this.decryptedData.otp == this.otp;
+        const photoComplete = this.photoTaken && this.photoPreviewUrl !== null;
         const signatureComplete = this.signatureCompleted || !this.delivery.requiresSignature;
         return otpComplete && photoComplete && signatureComplete;
       }
       return false;
     },
-    /**
-     * Verifies the entered OTP and moves to the next step.
-     */
+
     verifyOTP() {
-      if (this.otp.length === 6) {
-        // Simulate API call for OTP verification
-        console.log('Verifying OTP:', this.otp);
+      if (this.otp.length === 5 && this.decryptedData && this.decryptedData.otp == this.otp) {
+        console.log('OTP Verified.');
+        this.fireToast({
+          type: 'success',
+          message: 'OTP verified successfully!',
+          duration: 2000
+        });
         setTimeout(() => {
-          this.step = 'photo'; // Move to photo step on successful OTP verification
-        }, 800); // Shorter delay for smoother UX
+          this.step = 'photo';
+        }, 800);
+      } else {
+        this.fireToast({
+          type: 'error',
+          message: 'Invalid OTP. Please try again.',
+          duration: 3000
+        });
       }
     },
-    /**
-     * Triggers the hidden file input element.
-     */
+
+    fireToast({ type, message, duration = 3000 }) {
+      const id = this.toastIdCounter++;
+      this.toasts.push({ id, message, type });
+
+      setTimeout(() => {
+        this.removeToast(id);
+      }, duration);
+    },
+
+    removeToast(id) {
+      this.toasts = this.toasts.filter(toast => toast.id !== id);
+    },
+
     triggerFileInput() {
       this.$refs.photoInput.click();
     },
-    /**
-     * Handles the photo file selection and displays a preview.
-     * @param {Event} event - The change event from the file input.
-     */
+
     handlePhotoUpload(event) {
       const file = event.target.files[0];
-      this.photoError = ''; // Clear previous errors
+      this.photoError = '';
 
       if (file) {
         if (!file.type.startsWith('image/')) {
@@ -268,100 +487,227 @@ export default {
           return;
         }
 
-        this.photoFile = file;
+        this.photoFile = file; // Storing the File object
         this.photoTaken = true;
 
-        // Create a URL for the image preview
         const reader = new FileReader();
         reader.onload = (e) => {
-          this.photoPreviewUrl = e.target.result;
+          this.photoPreviewUrl = e.target.result; // This is the Base64 data URL
         };
         reader.readAsDataURL(file);
       } else {
         this.clearPhoto();
       }
     },
-    /**
-     * Clears the selected photo and its preview.
-     */
+
     clearPhoto() {
       this.photoFile = null;
       this.photoPreviewUrl = null;
       this.photoTaken = false;
-      this.$refs.photoInput.value = ''; // Reset file input
+      this.$refs.photoInput.value = ''; // Clear file input
       this.photoError = '';
+      this.finallastphoto = null; // Also clear the data for submission
     },
-    /**
-     * Continues from the photo step to either signature or final confirmation.
-     */
+
     continueFromPhoto() {
-      if (!this.photoFile) {
+      if (!this.photoPreviewUrl) {
         this.photoError = 'Please upload a photo to proceed.';
         return;
       }
-      this.photoError = ''; // Clear error if photo exists
+      this.photoError = '';
 
       if (this.delivery.requiresSignature) {
-        this.step = 'signature'; // Move to signature step if required
+        this.step = 'signature';
       } else {
-        this.step = 'complete'; // Otherwise, move directly to complete step
+        this.step = 'complete';
       }
     },
-    /**
-     * Simulates capturing a digital signature.
-     */
+
+    // --- Signature Pad Methods ---
     captureSignature() {
-      console.log('Simulating signature capture...');
-      setTimeout(() => {
-        this.signatureCompleted = true; // Mark signature as completed
-      }, 800); // Simulate processing time
+      this.signatureError = '';
+      this.showSignaturePadModal = true;
+      this.fireToast({
+        type: 'info',
+        message: 'Please sign on the pad and click Save.',
+        duration: 3000
+      });
     },
-    /**
-     * Confirms the final delivery and redirects to the dashboard.
-     */
-    confirmDelivery() {
-      this.isSubmitting = true; // Show loading spinner
+
+    initializeSignaturePad() {
+      this.signatureCanvas = this.$refs.signatureCanvas;
+      if (!this.signatureCanvas) {
+        console.error('Signature canvas element not found!');
+        this.fireToast({
+          type: 'error',
+          message: 'Signature pad failed to load.',
+          duration: 3000
+        });
+        return;
+      }
+
+      // Important: Set canvas width/height attributes explicitly for SignaturePad
+      const computedStyle = getComputedStyle(this.signatureCanvas);
+      this.signatureCanvas.width = parseInt(computedStyle.width);
+      this.signatureCanvas.height = parseInt(computedStyle.height);
+
+      this.signaturePadInstance = new SignaturePad(this.signatureCanvas, {
+        backgroundColor: 'rgb(255, 255, 255)',
+        penColor: 'rgb(0, 0, 0)'
+      });
+       // If a signature was already captured, load it for editing/viewing
+      if (this.signatureImageBase64) {
+          this.signaturePadInstance.fromDataURL(this.signatureImageBase64);
+      }
+    },
+
+    saveSignature() {
+      if (this.signaturePadInstance.isEmpty()) {
+        this.signatureError = 'Please provide a signature to save.';
+        this.fireToast({
+          type: 'warning',
+          message: 'Signature pad is empty. Please sign.',
+          duration: 3000
+        });
+        return;
+      }
+
+      // Get signature as a Base64 encoded PNG image data URL
+      this.signatureImageBase64 = this.signaturePadInstance.toDataURL('image/png');
+
+      this.signatureCompleted = true;
+      this.showSignaturePadModal = false;
+      this.signatureError = '';
+
+      console.log('Signature Base64 data URL captured (first 50 chars):', this.signatureImageBase64.substring(0, 50) + '...');
+    },
+
+    clearSignaturePad() {
+      if (this.signaturePadInstance) {
+        this.signaturePadInstance.clear();
+        this.signatureError = '';
+        this.fireToast({
+          type: 'info',
+          message: 'Signature pad cleared.',
+          duration: 1000
+        });
+      }
+    },
+
+    clearSignature() {
+        this.signatureCompleted = false;
+        this.signatureImageBase64 = null; // Clear the Base64 data URL
+        this.finalsignaturebase64 = null; // Clear the data for submission as well
+        if (this.signaturePadInstance) {
+              this.signaturePadInstance.clear();
+        }
+        this.fireToast({
+          type: 'info',
+          message: 'Signature cleared from delivery.',
+          duration: 1500
+        });
+    },
+
+    cancelSignature() {
+      this.showSignaturePadModal = false;
+      this.signatureError = '';
+      if (this.signaturePadInstance) {
+        this.signaturePadInstance.clear();
+      }
+      this.fireToast({
+          type: 'info',
+          message: 'Signature capture cancelled.',
+          duration: 2000
+      });
+    },
+    // --- End Signature Pad Methods ---
+
+    async confirmDelivery() {
+      this.isSubmitting = true;
       console.log('Confirming delivery...');
 
-      // In a real application, you would send this.photoFile and other data to your backend
-      // using FormData and an API call (e.g., Axios).
-      // For this example, we'll just log its presence.
-      if (this.photoFile) {
-        console.log('Photo file to be uploaded:', this.photoFile.name, this.photoFile.size, this.photoFile.type);
+      // Ensure that finallastphoto and finalsignaturebase64 are updated right before submission
+      // This is primarily for safety, as the `watch` handlers should usually take care of it.
+      if (this.photoPreviewUrl) {
+          this.finallastphoto = this.photoPreviewUrl;
+      }
+      if (this.delivery.requiresSignature && this.signatureImageBase64) {
+          this.finalsignaturebase64 = this.signatureImageBase64;
+      } else if (!this.delivery.requiresSignature) {
+          this.finalsignaturebase64 = null; // Explicitly null if not required
       }
 
-      // Simulate API call to confirm delivery
-      setTimeout(() => {
-        const confirmationData = {
-          deliveryId: this.delivery.id,
-          confirmedAt: new Date().toISOString(),
-          otp: this.otp,
-          photoUploaded: this.photoFile !== null, // Indicate if photo was uploaded
-          // In a real app, you might include a reference to the uploaded photo's URL
-          signatureCompleted: this.signatureCompleted,
-          notes: this.deliveryNotes,
-          status: 'delivered'
-        };
-        // Store confirmation data (e.g., in localStorage or send to backend)
-        localStorage.setItem(`delivery-confirmation-${this.delivery.id}`, JSON.stringify(confirmationData));
+      const confirmationData = {
+        // Ensure these IDs come from the decrypted data
+        productId: this.decryptedData.productId,
+        transportTripId: this.decryptedData.transportTripId,
+        // The frontend logic already sets decryptedData.confirmationBySender for `confirmation_by_sender`
+        // Make sure `confirmationBySender` is indeed the value for `transportTripId` or if it's a separate field.
+        // Based on your original code's `.eq('confirmation_by_sender', transportTripId)`, it seems `transportTripId`
+        // is what maps to `confirmation_by_sender` in the DB.
+        confirmationBySender: this.decryptedData.confirmationBySender, 
         
-        // Redirect to dashboard with a success message
-        this.$router.push({
-          path: '/carrier-dashboard', // Changed to carrier-dashboard for consistency
-          query: {
-            message: 'Delivery confirmed successfully! Payment has been processed.',
-            type: 'success'
-          }
+        confirmedAt: new Date().toISOString(),
+        finallastphoto: this.finallastphoto, // Base64 data URL string
+        finalsignaturebase64 : this.finalsignaturebase64, // Base64 data URL string
+        notes: this.deliveryNotes,
+        status: 'delivered', // Set a status for the delivery record
+        email: this.decryptedData.email
+      };
+
+      console.log('Final Confirmation Data for API:', confirmationData);
+      const baseUrl = import.meta.env.VITE_API_BASE_URL ; // Fallback for VITE_API_BASE_URL
+
+      try {
+        const response = await fetch(`${baseUrl}cnf-deliverypart2`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(confirmationData)
         });
-        this.isSubmitting = false; // Reset submitting state
-      }, 2000); // Simulate network delay
+
+        const resData = await response.json();
+
+        if (!response.ok) {
+          throw new Error(resData.message || 'Failed to confirm delivery.');
+        }
+
+        this.fireToast({
+          type: 'success',
+          message: resData.message || 'Delivery confirmed!',
+          duration: 3000
+        });
+
+        // Simulate success and redirect
+        setTimeout(() => {
+          this.$router.push({
+            path: '/carrier-dashboard',
+            query: {
+              message: 'Delivery confirmed successfully! Payment has been processed.',
+              type: 'success'
+            }
+          });
+          this.isSubmitting = false;
+        }, 2000);
+
+      } catch (error) {
+        console.error('Error confirming delivery:', error);
+        this.fireToast({
+          type: 'error',
+          message: error.message || 'Something went wrong during confirmation!',
+          duration: 5000
+        });
+        this.isSubmitting = false;
+      }
     }
   }
 };
 </script>
 
 <style scoped>
-/* Base styling for dark theme compatibility */
+/* Your existing CSS styles go here */
+/* Dark Theme Adjustments */
 body.theme-dark .container {
   background-color: #1a1a1a;
   color: #e0e0e0;
@@ -413,9 +759,10 @@ body.theme-dark .bg-light-subtle {
   background-color: #3a3a3a !important;
 }
 
-/* General component styling */
+
+/* General Styling */
 .max-w-2xl {
-  max-width: 720px; /* Equivalent to Bootstrap's .mw-md */
+  max-width: 720px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -431,7 +778,6 @@ body.theme-dark .bg-light-subtle {
   color: var(--bs-primary);
 }
 
-/* Card Styling */
 .card {
   border-radius: 1rem;
   overflow: hidden;
@@ -445,7 +791,6 @@ body.theme-dark .bg-light-subtle {
   border-bottom: 1px solid var(--bs-border-color-translucent);
 }
 
-/* Delivery Info Card specific */
 .badge.bg-success-subtle {
   background-color: var(--bs-success-bg-subtle);
   color: var(--bs-success-text-emphasis);
@@ -466,7 +811,7 @@ body.theme-dark .bg-light-subtle {
   flex-direction: column;
   align-items: center;
   position: relative;
-  z-index: 1; /* Ensures icon is above line */
+  z-index: 1;
   transition: all 0.3s ease;
   color: var(--bs-secondary-text-emphasis);
 }
@@ -562,7 +907,6 @@ body.theme-dark .bg-light-subtle {
   transform: translateY(-2px);
 }
 
-/* Proof Sections (Photo/Signature) */
 .border.rounded-3 {
   border-width: 2px !important;
   border-style: dashed !important;
@@ -570,10 +914,10 @@ body.theme-dark .bg-light-subtle {
 }
 
 .bg-light-subtle {
-  background-color: var(--bs-body-bg) !important; /* Adjust for better contrast */
+  background-color: var(--bs-body-bg) !important;
 }
 
-/* Photo Upload Area Specific Styles */
+/* Photo Upload Area */
 .photo-upload-area {
   position: relative;
   overflow: hidden;
@@ -585,8 +929,8 @@ body.theme-dark .bg-light-subtle {
 }
 
 .photo-upload-area.has-photo {
-  border-style: solid !important; /* Solid border once photo is uploaded */
-  border-color: var(--bs-success) !important; /* Green border to indicate success */
+  border-style: solid !important;
+  border-color: var(--bs-success) !important;
 }
 
 .photo-preview-wrapper {
@@ -602,7 +946,7 @@ body.theme-dark .bg-light-subtle {
 .photo-preview-wrapper img {
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain; /* Ensures the whole image is visible */
+  object-fit: contain;
 }
 
 .photo-preview-wrapper .overlay {
@@ -611,7 +955,7 @@ body.theme-dark .bg-light-subtle {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.3); /* Darker overlay for icon visibility */
+  background-color: rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -620,11 +964,21 @@ body.theme-dark .bg-light-subtle {
 }
 
 .photo-preview-wrapper:hover .overlay {
-  opacity: 1; /* Show overlay on hover */
+  opacity: 1;
 }
 
-/* Animate.css integration (ensure you have Animate.css imported in your main project) */
+/* Animations */
 .animate__animated {
-  --animate-duration: 0.6s; /* Slightly slower for a smoother feel */
+  --animate-duration: 0.6s;
+}
+
+/* Toast Container (NEW STYLING FOR NATIVE BOOTSTRAP TOASTS) */
+.toast-container {
+  z-index: 1080; /* Ensures toasts are above most other elements */
+}
+
+/* Modal styles (basic) */
+.modal-backdrop.show {
+  opacity: 0.5; /* Bootstrap's default backdrop opacity */
 }
 </style>

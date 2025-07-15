@@ -313,11 +313,7 @@ export default {
     },
   },
   methods: {
-    /**
-     * Returns a user-friendly label for a given delivery status.
-     * @param {string} status - The raw status string (e.g., 'accepted', 'in-transit').
-     * @returns {string} The formatted status label.
-     */
+   
     getStatusLabel(status) {
       switch (status) {
         case "accepted": return "Ready for Pickup";
@@ -327,11 +323,7 @@ export default {
         default: return status;
       }
     },
-    /**
-     * Returns Bootstrap badge classes based on delivery status for visual distinction.
-     * @param {string} status - The raw status string.
-     * @returns {string} Bootstrap badge classes.
-     */
+   
     getStatusBadgeClass(status) {
       switch (status) {
         case "accepted": return "badge bg-primary text-white"; // Ready for pickup: Primary blue
@@ -341,22 +333,13 @@ export default {
         default: return "badge bg-secondary"; // Default for unknown statuses
       }
     },
-    /**
-     * Updates the status of an active delivery.
-     * Note: 'delivered' status should ideally go through a confirmation flow (goToConfirmDelivery).
-     * This method is primarily for intermediate status updates ('accepted' -> 'picked-up' -> 'in-transit').
-     * @param {string} id - The ID of the delivery to update.
-     * @param {string} newStatus - The new status for the delivery.
-     */
+   
     updateDeliveryStatus(id, newStatus) {
       this.deliveries = this.deliveries.map(d =>
         d.id === id ? { ...d, status: newStatus } : d
       );
     },
-    /**
-     * Navigates to a dedicated "Post New Trip" page.
-     * Assumes Vue Router is configured and a route for '/post-trip' exists.
-     */
+    
     goToPostTrip() {
       if (this.$router) {
         this.$router.push("/post-trip");
@@ -364,32 +347,16 @@ export default {
         alert("Vue Router is not configured or '/post-trip' route is missing.");
       }
     },
-    /**
-     * Navigates to a "Confirm Delivery" page for the specified delivery.
-     * This is intended for the final step before a delivery is marked 'delivered'
-     * and typically involves signature, photos, and final rating/feedback input.
-     * Assumes Vue Router is configured and a route like '/confirm-delivery/:id' exists.
-     * @param {string} id - The ID of the delivery to confirm.
-     */
+   
     goToConfirmDelivery(id) {
         if (this.$router) {
             this.$router.push(`/cnf-delivery/${id}`);
         } else {
             alert(`Simulating confirmation for delivery ID: ${id}. In a real app, this would navigate to a confirmation screen.`);
-            // For immediate demo effect without a router, you could manually move to completed here:
-            // const index = this.deliveries.findIndex(d => d.id === id);
-            // if (index !== -1) {
-            //     const deliveredItem = { ...this.deliveries[index], status: 'delivered', completedAt: new Date().toISOString(), earnings: this.deliveries[index].amount, rating: 5, feedback: "Delivered smoothly via dashboard button!" };
-            //     this.completedDeliveries.push(deliveredItem);
-            //     this.deliveries.splice(index, 1);
-            // }
+          
         }
     },
-    /**
-     * Generates initials from a full name (e.g., "John Doe" -> "JD").
-     * @param {string} name - The full name.
-     * @returns {string} The initials in uppercase.
-     */
+   
     getInitials(name) {
       if (!name) return '';
       return name
@@ -397,21 +364,13 @@ export default {
         .map(part => part.charAt(0).toUpperCase())
         .join("");
     },
-    /**
-     * Formats an ISO date-time string into a human-readable local format.
-     * @param {string} dateTimeString - ISO 8601 date string.
-     * @returns {string} Formatted date and time (e.g., "Jul 7, 2024, 3:45 PM").
-     */
+   
     formatDateTime(dateTimeString) {
       if (!dateTimeString) return 'N/A';
       const options = { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true };
       return new Date(dateTimeString).toLocaleString('en-US', options);
     },
-    /**
-     * Simulates opening a chat application. In a real app, this could be a deep link
-     * to WhatsApp, an in-app chat, or another messaging service.
-     * @param {string} phoneNumber - The phone number to chat with.
-     */
+   
     openChat(phoneNumber) {
         alert(`Simulating chat with: ${phoneNumber}. (In a real app, this would open a chat client)`);
         // Example for WhatsApp: window.open(`https://wa.me/${phoneNumber.replace(/\D/g, '')}`, '_blank');
@@ -439,10 +398,7 @@ export default {
 </script>
 
 <style scoped>
-/*
- * Base Styling & Global Variables
- * Assumes Bootstrap 5.x is used.
- */
+
 :root {
   --bs-primary-dark: #6a6ee0; /* A darker shade for dark mode primary */
   --bs-primary-dark-border-subtle: #4a4eaa;

@@ -4,7 +4,7 @@
 
     <router-view />
 
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="notificationsOffcanvas" aria-labelledby="notificationsOffcanvasLabel">
+    <div v-if="$store.getters.getUser.email" class="offcanvas offcanvas-end" tabindex="-1" id="notificationsOffcanvas" aria-labelledby="notificationsOffcanvasLabel">
       <div class="offcanvas-header bg-light border-bottom">
         <h5 class="offcanvas-title fw-bold" id="notificationsOffcanvasLabel">
           <i class="bi bi-bell-fill me-2 text-primary"></i> Notifications
@@ -38,7 +38,7 @@
                 </div>
               </div>
               <button
-                  v-if="!notification.read"
+                  v-if="!notification.read "
                   class="btn btn-sm btn-outline-secondary ms-3 align-self-center"
                   @click.stop="markNotificationAsRead(notification.id)"
                   title="Mark as Read"
@@ -67,7 +67,7 @@
       </div>
     </div>
 
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="chatOffcanvas" aria-labelledby="chatOffcanvasLabel">
+    <div  v-if="$store.getters.getUser.email"  class="offcanvas offcanvas-end" tabindex="-1" id="chatOffcanvas" aria-labelledby="chatOffcanvasLabel">
       <div class="offcanvas-header bg-light border-bottom">
         <h5 class="offcanvas-title fw-bold" id="chatOffcanvasLabel">
           <i class="bi bi-chat-dots-fill me-2 text-success"></i> Chats
@@ -159,17 +159,23 @@ export default {
   },
   methods: {
     viewAllMessages() {
-      // 1. Navigate to the messages page
+      
       this.$router.push('/messages');
 
-      // 2. Dismiss the offcanvas programmatically
-      // Replace 'YOUR_OFFCANVAS_ID' with the actual ID of your Bootstrap offcanvas element
-      const offcanvasElement = document.getElementById('YOUR_OFFCANVAS_ID'); 
-      if (offcanvasElement) {
-        // Get the Offcanvas instance, or create one if it doesn't exist yet
-        const offcanvas = Offcanvas.getInstance(offcanvasElement) || new Offcanvas(offcanvasElement);
-        offcanvas.hide(); // Hide the offcanvas
-      }
+      // const offcanvasElement = document.getElementById('chatOffcanvas'); 
+      // if (offcanvasElement) {
+      //   // Get the Offcanvas instance, or create one if it doesn't exist yet
+      //   const offcanvas = Offcanvas.getInstance(offcanvasElement) || new Offcanvas(offcanvasElement);
+      //   offcanvas.hide(); // Hide the offcanvas
+      // }
+       console.log("Clicked View All Messages");
+        // this.$router.push('/messages');
+
+        const offcanvasElement = document.getElementById('chatOffcanvas'); 
+        if (offcanvasElement) {
+          const offcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement) || new bootstrap.Offcanvas(offcanvasElement);
+          offcanvas.hide();
+        }
     },
     fetchInitialNotifications() {
       this.notifications = [
