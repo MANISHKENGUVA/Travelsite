@@ -66,6 +66,7 @@ const routes = [
       },
       {
         path: '/cnf-delivery/:id', // Dynamic segment for user ID
+          name: 'CnfDelivery', // <--- Add a name here
         component: () => import('./pages/cnf-delivery.vue'),
       },
         {
@@ -115,6 +116,12 @@ const routes = [
     path: '/updates', // Define the path for the updates page
     name: 'Updates',
     component: ()=> import('./pages/UpdatesPage.vue'), 
+  },
+
+   {
+    path: '/404', // Define the path for the updates page
+    name: 'AccessDenied',
+    component: ()=> import('./pages/AccessDenied.vue'), 
   }
 ];
 

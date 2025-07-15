@@ -1,10 +1,13 @@
 <template>
     <div>
          <Welcome />
-         <div class="container d-flex  flex-column flex-md-row  ">  
-             <Cards class="m-3" />
-             <OfferTransCard />
-            
+         <div class="container ">  
+                <div class="row">
+
+                
+             <Cards class="" />
+             <OfferTransCard class="" />
+            </div>
          </div>
   
        <div class="container">  

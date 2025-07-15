@@ -24,7 +24,7 @@
         </router-link>
       </nav>
 
-      <div class="d-flex align-items-center ms-md-4 gap-2 gap-md-3">
+      <div v-if="$store.getters.getUser.email" class="d-flex align-items-center ms-md-4 gap-2 gap-md-3">
         <button
           class="btn btn-light rounded-circle p-2 action-btn position-relative"
           type="button"
@@ -53,7 +53,7 @@
           </span>
         </button>
 
-        <div class="dropdown">
+        <div  v-if="$store.getters.getUser.email" class="dropdown">
           <button
             class="btn btn-light rounded-pill px-3 py-2 border-0 d-flex align-items-center user-dropdown-toggle"
             data-bs-toggle="dropdown"
@@ -192,9 +192,7 @@ export default {
     },
     logout() {
       // Implement your logout logic here (e.g., clear user token, redirect)
-      if (this.$store && this.$store.dispatch) {
-          this.$store.dispatch('logout');
-      }
+     localStorage.removeItem("user")
       this.$router.push('/login');
     },
     logoutAndCloseMobileMenu() {
@@ -217,12 +215,12 @@ export default {
       if (notification) {
         notification.read = true;
       }
-      // In a real app, you'd send an API call to mark it as read on the server
+
       console.log(`Notification ${id} marked as read.`);
     },
     markAllNotificationsRead() {
       this.notifications.forEach(n => n.read = true);
-      // In a real app, you'd send an API call to mark all as read
+
       console.log('All notifications marked as read.');
     },
     viewNotificationDetail(notification) {

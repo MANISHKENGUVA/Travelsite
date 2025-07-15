@@ -17,3 +17,20 @@ export function decryptUserData(cipherText) {
     return null;
   }
 }
+
+
+export function  convertToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      resolve(reader.result); // this includes the Base64 string with MIME type
+    };
+
+    reader.onerror = (error) => {
+      reject(error);
+    };
+
+   return reader.readAsDataURL(file); // reads file as Base64
+  });
+}
